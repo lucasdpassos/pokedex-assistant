@@ -1,10 +1,26 @@
 import { NextRequest } from 'next/server';
 import Anthropic from '@anthropic-ai/sdk';
-import { ANTHROPIC_TOOLS, executeTool } from '@/lib/anthropic-tools';
+import { getOrchestrator, getAnthropicToolDefinitions } from '@/lib/orchestrator/setup';
+import { logger } from '@/lib/orchestrator/logger';
 
 const anthropic = new Anthropic({
   apiKey: process.env.ANTHROPIC_API_KEY!,
 });
+
+// Helper function to safely interact with controller
+function safeControllerAction(controller: ReadableStreamDefaultController, action: () => void) {
+  try {
+    // Check if controller is still open
+    if (controller.desiredSize !== null) {
+      action();
+    }
+  } catch (error) {
+    // Silently ignore controller state errors as they're expected when interrupted
+    if (error instanceof Error && !error.message.includes('Controller is already closed')) {
+      console.error('Controller action error:', error);
+    }
+  }
+}
 
 export async function POST(request: NextRequest) {
   if (!process.env.ANTHROPIC_API_KEY) {
@@ -45,11 +61,13 @@ Remember: You're helping trainers become the very best!`
           await processConversation(controller, [systemMessage, ...messages]);
         } catch (error) {
           console.error('Streaming error:', error);
-          controller.enqueue(new TextEncoder().encode(`data: ${JSON.stringify({ 
-            type: 'error', 
-            content: 'An error occurred while processing your request.' 
-          })}\n\n`));
-          controller.close();
+          safeControllerAction(controller, () => {
+            controller.enqueue(new TextEncoder().encode(`data: ${JSON.stringify({ 
+              type: 'error', 
+              content: 'An error occurred while processing your request.' 
+            })}\n\n`));
+            controller.close();
+          });
         }
       },
     });
@@ -74,19 +92,17 @@ async function processConversation(controller: ReadableStreamDefaultController, 
   // Prevent infinite recursion
   if (depth > 5) { // Reduced limit to prevent hitting the max
     console.error('Maximum recursion depth reached, ending conversation');
-    try {
+    safeControllerAction(controller, () => {
       controller.enqueue(new TextEncoder().encode(`data: ${JSON.stringify({ type: 'error', content: 'Maximum conversation depth reached' })}\n\n`));
       controller.enqueue(new TextEncoder().encode(`data: ${JSON.stringify({ type: 'done' })}\n\n`));
       controller.close();
-    } catch (error) {
-      console.error('Error ending conversation:', error);
-    }
+    });
     return;
   }
   const response = await anthropic.messages.create({
     model: 'claude-3-7-sonnet-20250219',
     max_tokens: 1024,
-    tools: ANTHROPIC_TOOLS,
+    tools: getAnthropicToolDefinitions() as any,
     messages: messages.slice(1), // Remove system message as it's handled separately
     system: messages[0].content,
     stream: true,
@@ -96,9 +112,9 @@ async function processConversation(controller: ReadableStreamDefaultController, 
   let hasToolUse = false;
 
   // Accumulate the full response first, then process
-  let fullMessage = { role: 'assistant', content: [] };
-  let currentTextBlock = null;
-  let currentToolBlock = null;
+  let fullMessage: any = { role: 'assistant', content: [] };
+  let currentTextBlock: any = null;
+  let currentToolBlock: any = null;
   let toolInputBuffer = '';
   
   for await (const chunk of response) {
@@ -124,12 +140,9 @@ async function processConversation(controller: ReadableStreamDefaultController, 
           currentTextBlock.text += text;
           
           // Stream the text to client
-          try {
+          safeControllerAction(controller, () => {
             controller.enqueue(new TextEncoder().encode(`data: ${JSON.stringify({ type: 'text', content: text })}\n\n`));
-          } catch (error) {
-            console.error('Error streaming text:', error);
-            break; // Stop processing if controller is closed
-          }
+          });
         }
       } else if (chunk.delta.type === 'input_json_delta' && currentToolBlock) {
         // Accumulate partial JSON
@@ -162,26 +175,36 @@ async function processConversation(controller: ReadableStreamDefaultController, 
     for (const content of currentMessage.content) {
       if (content.type === 'tool_use') {
         try {
-          console.log(`Executing tool: ${content.name} with input:`, content.input);
-          const result = await executeTool(content.name, content.input);
+          const orchestrator = getOrchestrator();
+          const requestLogger = logger.child({ 
+            toolName: content.name, 
+            requestId: `req_${Date.now()}` 
+          });
+          
+          requestLogger.info('Executing tool via orchestrator', { input: content.input });
+          
+          const result = await orchestrator.executeTool(
+            content.name, 
+            content.input,
+            { requestId: `req_${Date.now()}` }
+          );
+          
+          const toolResult = result.success ? result.data : { error: result.error };
+          
           toolResults.push({
             type: 'tool_result',
             tool_use_id: content.id,
-            content: JSON.stringify(result)
+            content: JSON.stringify(toolResult)
           });
           
           // Stream the tool result to the client
-          try {
+          safeControllerAction(controller, () => {
             controller.enqueue(new TextEncoder().encode(`data: ${JSON.stringify({ 
               type: 'tool_result', 
               tool_name: content.name,
               result 
             })}\n\n`));
-          } catch (error) {
-            console.error('Error streaming tool result:', error);
-            // If controller is closed, stop processing
-            return;
-          }
+          });
         } catch (error) {
           console.error('Tool execution error:', error);
           toolResults.push({
@@ -210,30 +233,24 @@ async function processConversation(controller: ReadableStreamDefaultController, 
         await processConversation(controller, updatedMessages, depth + 1);
       } catch (error) {
         console.error('Error in follow-up conversation:', error);
-        try {
+        safeControllerAction(controller, () => {
           controller.enqueue(new TextEncoder().encode(`data: ${JSON.stringify({ type: 'error', content: 'Error processing response' })}\n\n`));
           controller.enqueue(new TextEncoder().encode(`data: ${JSON.stringify({ type: 'done' })}\n\n`));
           controller.close();
-        } catch (closeError) {
-          console.error('Error closing controller:', closeError);
-        }
+        });
       }
     } else {
       // At max depth, just end the conversation
-      try {
+      safeControllerAction(controller, () => {
         controller.enqueue(new TextEncoder().encode(`data: ${JSON.stringify({ type: 'done' })}\n\n`));
         controller.close();
-      } catch (error) {
-        console.error('Error finishing conversation after tools:', error);
-      }
+      });
     }
   } else {
     // No tool use, conversation is complete
-    try {
+    safeControllerAction(controller, () => {
       controller.enqueue(new TextEncoder().encode(`data: ${JSON.stringify({ type: 'done' })}\n\n`));
       controller.close();
-    } catch (error) {
-      console.error('Error finishing conversation:', error);
-    }
+    });
   }
 }

@@ -1,9 +1,12 @@
-<div style="display: flex; align-items: center; margin-bottom: 2rem;">
-  <img src="/lucas.png" alt="Lucas Passos" style="width: 48px; height: 48px; border-radius: 50%; margin-right: 12px; object-fit: cover;" />
-  <span style="color: #6b7280; font-size: 0.875rem; font-weight: 500;">Notetaker: Lucas Passos</span>
-</div>
+'use client';
 
-# AI Pokédex Assistant - Technical Writeup
+import { useState, useRef } from 'react';
+import ReactMarkdown from 'react-markdown';
+import { Download, FileText, ExternalLink } from 'lucide-react';
+import Link from 'next/link';
+import Image from 'next/image';
+
+const writeupContent = `# AI Pokédex Assistant - Technical Writeup
 
 ## Project Overview
 
@@ -21,7 +24,7 @@ This project implements an enterprise-grade AI-powered Pokédex chatbot featurin
 
 The application features a sophisticated **Tool Orchestrator** that implements enterprise-grade patterns:
 
-```
+\`\`\`
 ┌─────────────────────────────────────────────────────────────┐
 │                    Tool Orchestrator                         │
 ├─────────────────┬─────────────────┬─────────────────────────┤
@@ -41,7 +44,7 @@ The application features a sophisticated **Tool Orchestrator** that implements e
 │ • Info lookup   │ • Analysis      │ • Battle simulation     │
 │ • Random get    │ • Suggestions   │ • Strategy advisor      │
 └─────────────────┴─────────────────┴─────────────────────────┘
-```
+\`\`\`
 
 ### Design Patterns Implementation
 
@@ -68,14 +71,14 @@ The application features a sophisticated **Tool Orchestrator** that implements e
 
 **Recursive Conversation Handling**: Implemented a sophisticated system to handle tool use scenarios where the AI needs to call tools and continue the conversation seamlessly.
 
-```typescript
+\`\`\`typescript
 async function processConversation(controller: ReadableStreamDefaultController, messages: any[]) {
   // Stream initial response
   // If tool use detected, execute tools
   // Continue conversation with tool results
   // Recursively process until completion
 }
-```
+\`\`\`
 
 ### 3. Tool System Design
 
@@ -95,7 +98,6 @@ async function processConversation(controller: ReadableStreamDefaultController, 
 
 **Tool Execution Security**: All tool execution happens server-side to protect API keys and ensure data integrity.
 
-
 ## Critical Challenges Faced and Advanced Solutions
 
 ### 1. **Infinite Recursion Problem in Tool Execution**
@@ -107,7 +109,7 @@ async function processConversation(controller: ReadableStreamDefaultController, 
 - Performance degradation and application crashes
 
 **Root Cause Analysis**:
-```typescript
+\`\`\`typescript
 // PROBLEMATIC CODE - Infinite recursion
 async function processConversation(controller, messages) {
   // Process response...
@@ -116,10 +118,10 @@ async function processConversation(controller, messages) {
     await processConversation(controller, updatedMessages); // ← INFINITE LOOP
   }
 }
-```
+\`\`\`
 
 **Advanced Solution Implemented**:
-```typescript
+\`\`\`typescript
 // SOLVED - Controlled recursion with depth limiting
 async function processConversation(controller, messages, depth = 0) {
   // Prevent infinite recursion
@@ -136,7 +138,7 @@ async function processConversation(controller, messages, depth = 0) {
     finishConversation();
   }
 }
-```
+\`\`\`
 
 **Prevention Mechanisms**:
 - **Depth Tracking**: Monitor recursion levels with explicit counters
@@ -147,20 +149,20 @@ async function processConversation(controller, messages, depth = 0) {
 ### 2. **Stream Controller State Management Crisis**
 
 **Challenge**: Multiple race conditions and state management issues:
-- `ERR_INVALID_STATE: Controller is already closed` errors
+- \`ERR_INVALID_STATE: Controller is already closed\` errors
 - Memory leaks from unclosed streams
 - Inconsistent UI state between loading/streaming
 - Tool execution results lost due to closed controllers
 
 **Technical Deep Dive**:
-```typescript
+\`\`\`typescript
 // PROBLEM - Uncontrolled stream state
 controller.enqueue(data); // ← Could fail if already closed
 // No error handling, state tracking, or cleanup
-```
+\`\`\`
 
 **Comprehensive Solution**:
-```typescript
+\`\`\`typescript
 // SOLUTION - Robust stream state management
 try {
   if (!controller.desiredSize === null) { // Check if closed
@@ -174,7 +176,7 @@ try {
   abortControllerRef.current = null;
   setIsStreaming(false);
 }
-```
+\`\`\`
 
 **Advanced Error Handling**:
 - **State Validation**: Check controller state before operations
@@ -185,20 +187,20 @@ try {
 ### 3. **Tool Input Validation and Empty Object Problem**
 
 **Challenge**: Tool execution failing due to malformed or empty input:
-- Tools receiving `{}` instead of expected parameters
+- Tools receiving \`{}\` instead of expected parameters
 - JSON parsing errors with partial tool input streams
-- `TypeError: Cannot read properties of undefined` errors
+- \`TypeError: Cannot read properties of undefined\` errors
 - Inconsistent tool parameter extraction
 
 **Root Cause**:
-```typescript
+\`\`\`typescript
 // PROBLEM - Incomplete JSON parsing
 const inputDelta = JSON.parse(chunk.delta.partial_json || '{}'); // ← Partial JSON
 lastContent.input = { ...lastContent.input, ...inputDelta }; // ← Malformed merging
-```
+\`\`\`
 
 **Sophisticated Solution**:
-```typescript
+\`\`\`typescript
 // SOLUTION - Buffered JSON accumulation
 let toolInputBuffer = '';
 
@@ -216,8 +218,7 @@ if (chunk.type === 'content_block_stop' && toolInputBuffer) {
     currentToolBlock.input = {}; // Safe fallback
   }
 }
-```
-
+\`\`\`
 
 ## 1-Month Roadmap For New Features
 
@@ -251,4 +252,256 @@ if (chunk.type === 'content_block_stop' && toolInputBuffer) {
 - **Tournament Bracket Generator**: Automated tournament management
 - **Machine Learning**: Custom trained model for Pokémon-specific knowledge
 - **Real-time Multiplayer**: Live team building and battle simulation
-- **Integration APIs**: Showdown, Pokémon HOME compatibility
+- **Integration APIs**: Showdown, Pokémon HOME compatibility`;
+
+export default function WriteupPage() {
+  const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
+  const contentRef = useRef<HTMLDivElement>(null);
+
+  const handleDownloadPdf = async () => {
+    setIsGeneratingPdf(true);
+    
+    try {
+      // Import html2pdf dynamically to avoid SSR issues
+      const html2pdf = (await import('html2pdf.js')).default;
+      
+      if (contentRef.current) {
+        // Create a clean clone without Tailwind classes
+        const clone = contentRef.current.cloneNode(true) as HTMLElement;
+        
+        // Remove all classes to avoid Tailwind conflicts
+        const removeClasses = (element: Element) => {
+          element.removeAttribute('class');
+          for (const child of element.children) {
+            removeClasses(child);
+          }
+        };
+        removeClasses(clone);
+        
+        // Apply inline styles for PDF compatibility
+        clone.style.cssText = `
+          background: white;
+          padding: 32px;
+          font-family: system-ui, -apple-system, sans-serif;
+          line-height: 1.6;
+          color: black;
+        `;
+        
+        // Style headings
+        const headings = clone.querySelectorAll('h1, h2, h3, h4, h5, h6');
+        headings.forEach((h: Element) => {
+          (h as HTMLElement).style.cssText = `
+            color: #872A31;
+            font-weight: bold;
+            margin-top: 24px;
+            margin-bottom: 16px;
+          `;
+        });
+        
+        // Style links
+        const links = clone.querySelectorAll('a');
+        links.forEach((a: Element) => {
+          (a as HTMLElement).style.cssText = `
+            color: #872A31;
+            text-decoration: underline;
+          `;
+        });
+        
+        // Style code blocks
+        const codeBlocks = clone.querySelectorAll('pre');
+        codeBlocks.forEach((pre: Element) => {
+          (pre as HTMLElement).style.cssText = `
+            background-color: #f8f8f8;
+            border: 1px solid #e0e0e0;
+            border-radius: 4px;
+            padding: 16px;
+            overflow-x: auto;
+            font-family: monospace;
+            color: black;
+            margin: 16px 0;
+          `;
+        });
+        
+        // Style inline code
+        const inlineCodes = clone.querySelectorAll('code');
+        inlineCodes.forEach((code: Element) => {
+          if (code.parentElement?.tagName !== 'PRE') {
+            (code as HTMLElement).style.cssText = `
+              background-color: #f5f5f5;
+              color: #872A31;
+              padding: 2px 4px;
+              border-radius: 3px;
+              font-family: monospace;
+            `;
+          }
+        });
+        
+        // Style paragraphs
+        const paragraphs = clone.querySelectorAll('p');
+        paragraphs.forEach((p: Element) => {
+          (p as HTMLElement).style.cssText = `
+            color: black;
+            margin-bottom: 16px;
+          `;
+        });
+        
+        // Style lists
+        const lists = clone.querySelectorAll('ul, ol');
+        lists.forEach((list: Element) => {
+          (list as HTMLElement).style.cssText = `
+            color: black;
+            margin-bottom: 16px;
+            padding-left: 24px;
+          `;
+        });
+        
+        const listItems = clone.querySelectorAll('li');
+        listItems.forEach((li: Element) => {
+          (li as HTMLElement).style.cssText = `
+            color: black;
+            margin-bottom: 8px;
+          `;
+        });
+        
+        // Append clone to body temporarily
+        document.body.appendChild(clone);
+        
+        const options = {
+          margin: [15, 10, 15, 10],
+          filename: 'AI-Pokedex-Technical-Writeup-Lucas-Passos.pdf',
+          image: { type: 'jpeg', quality: 0.98 },
+          html2canvas: { 
+            scale: 2,
+            useCORS: true,
+            allowTaint: true,
+            backgroundColor: '#ffffff'
+          },
+          jsPDF: { 
+            unit: 'mm', 
+            format: 'a4', 
+            orientation: 'portrait' 
+          }
+        };
+
+        await html2pdf().set(options).from(clone).save();
+        
+        // Clean up
+        document.body.removeChild(clone);
+      }
+    } catch (error) {
+      console.error('Error generating PDF:', error);
+      alert('Error generating PDF. Please try again.');
+    } finally {
+      setIsGeneratingPdf(false);
+    }
+  };
+
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-stone-50 to-stone-100">
+      {/* Header */}
+      <div className="bg-white shadow-sm border-b border-stone-200">
+        <div className="max-w-4xl mx-auto px-6 py-4 flex items-center justify-between">
+          <div className="flex items-center gap-4">
+            <Link href="/" className="flex items-center gap-2 text-[#872A31] hover:text-[#a5313a] transition-colors">
+              <ExternalLink className="w-5 h-5" />
+              <span className="font-medium">Back to App</span>
+            </Link>
+            <div className="w-px h-6 bg-stone-300"></div>
+            <div className="flex items-center gap-2 text-stone-600">
+              <FileText className="w-5 h-5" />
+              <h1 className="text-lg font-semibold">Technical Writeup</h1>
+            </div>
+          </div>
+          
+          <button
+            onClick={handleDownloadPdf}
+            disabled={isGeneratingPdf}
+            className="flex items-center gap-2 px-4 py-2 bg-[#872A31] text-white rounded-lg hover:bg-[#a5313a] transition-colors disabled:opacity-50 disabled:cursor-not-allowed shadow-sm"
+          >
+            <Download className={`w-4 h-4 ${isGeneratingPdf ? 'animate-bounce' : ''}`} />
+            {isGeneratingPdf ? 'Generating PDF...' : 'Download PDF'}
+          </button>
+        </div>
+      </div>
+
+      {/* Content */}
+      <div className="max-w-4xl mx-auto px-6 py-8">
+        <div 
+          ref={contentRef}
+          className="bg-white rounded-xl shadow-lg border border-stone-200 p-8"
+        >
+          {/* Avatar Section */}
+          <div className="flex items-center mb-8">
+            <Image
+              src="/lucas.png"
+              alt="Lucas Passos"
+              width={48}
+              height={48}
+              className="rounded-full mr-3 object-cover"
+            />
+            <span className="text-gray-500 text-sm font-medium">Notetaker: Lucas Passos</span>
+          </div>
+
+          <div className="prose prose-stone max-w-none prose-headings:text-[#872A31] prose-a:text-[#872A31] prose-code:text-[#872A31] prose-pre:bg-stone-50 prose-pre:border prose-pre:border-stone-200 prose-p:text-black prose-li:text-black prose-strong:text-black text-black">
+            <ReactMarkdown
+              components={{
+              // Custom styling for code blocks
+              pre: ({ children, ...props }) => (
+                <pre className="bg-stone-50 border border-stone-200 rounded-lg p-4 overflow-x-auto text-sm text-black" {...props}>
+                  {children}
+                </pre>
+              ),
+              // Custom styling for inline code
+              code: ({ children, ...props }) => (
+                <code className="bg-stone-100 text-[#872A31] px-1 py-0.5 rounded text-sm font-mono" {...props}>
+                  {children}
+                </code>
+              ),
+              // Ensure paragraphs have black text
+              p: ({ children, ...props }) => (
+                <p className="text-black" {...props}>
+                  {children}
+                </p>
+              ),
+              // Ensure list items have black text
+              li: ({ children, ...props }) => (
+                <li className="text-black" {...props}>
+                  {children}
+                </li>
+              ),
+              // Allow HTML for the avatar section
+              div: ({ children, ...props }) => (
+                <div {...props}>{children}</div>
+              ),
+              img: ({ src, alt, ...props }) => (
+                <img 
+                  src={src} 
+                  alt={alt} 
+                  {...props}
+                  className="inline-block"
+                />
+              ),
+              span: ({ children, ...props }) => (
+                <span {...props}>{children}</span>
+              )
+              }}
+            >
+              {writeupContent}
+            </ReactMarkdown>
+          </div>
+        </div>
+      </div>
+
+      {/* Footer */}
+      <div className="bg-white border-t border-stone-200 mt-12">
+        <div className="max-w-4xl mx-auto px-6 py-6 text-center text-stone-500 text-sm">
+          <p>Generated on {new Date().toLocaleDateString('en-US', { 
+            year: 'numeric', 
+            month: 'long', 
+            day: 'numeric' 
+          })}</p>
+        </div>
+      </div>
+    </div>
+  );
+}

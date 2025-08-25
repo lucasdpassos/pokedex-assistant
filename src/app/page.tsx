@@ -3,6 +3,8 @@
 import { useState, useRef } from 'react';
 import Chat from '@/components/Chat';
 import Image from 'next/image';
+import Link from 'next/link';
+import { FileText } from 'lucide-react';
 
 export default function Home() {
   const [showTooltip, setShowTooltip] = useState(false);
@@ -26,6 +28,7 @@ export default function Home() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-stone-50 to-stone-100 dark:from-gray-900 dark:to-gray-800">
       <div className="container mx-auto px-4 py-8">
+        {/* Header */}
         <div className="text-center mb-8">
           <h1 className="text-4xl font-bold text-gray-900 dark:text-white mb-2">
             AI Pokédex Assistant
@@ -57,8 +60,19 @@ export default function Home() {
           </div>
         </div>
         
+        {/* Technical Writeup Button */}
+        <div className="flex justify-center mt-8">
+          <Link 
+            href="/writeup"
+            className="flex items-center gap-2 px-6 py-3 bg-[#872A31] text-white rounded-lg hover:bg-[#a5313a] transition-colors shadow-sm"
+          >
+            <FileText className="w-5 h-5" />
+            <span className="font-medium">View Technical Writeup</span>
+          </Link>
+        </div>
+        
         {/* Footer */}
-        <footer className="mt-72 flex justify-end">
+        <footer className="mt-48 flex justify-end">
           <p className="text-md text-gray-400 dark:text-gray-500">
             Created by{' '}
             <a 
