@@ -1,36 +1,97 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# AI Pokédex Assistant
 
-## Getting Started
+An AI-powered Pokédex chatbot built with Next.js that streams responses from Anthropic's Claude API and integrates with the PokéAPI for real-time Pokémon data.
 
-First, run the development server:
+## Features
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+🔍 **Pokémon Information Lookup**: Get detailed stats, types, abilities, and descriptions for any Pokémon
+🎲 **Random Pokémon Discovery**: Discover new Pokémon with the random generator
+⚔️ **Team Analysis**: Analyze your Pokémon team's strengths, weaknesses, and type coverage
+💡 **Team Improvement Suggestions**: Get intelligent recommendations to optimize your team
+💬 **Real-time Streaming**: Experience smooth, real-time AI responses
+🎨 **Modern UI**: Clean, responsive interface with dark mode support
+
+## Tech Stack
+
+- **Framework**: Next.js 15 with App Router
+- **Language**: TypeScript
+- **Styling**: Tailwind CSS
+- **AI Integration**: Anthropic Claude API (direct integration, no SDK wrappers)
+- **External API**: PokéAPI for Pokémon data
+- **Icons**: Lucide React
+
+## Setup Instructions
+
+1. **Clone and install dependencies**:
+   ```bash
+   npm install
+   ```
+
+2. **Configure environment variables**:
+   Create a `.env.local` file in the root directory:
+   ```bash
+   ANTHROPIC_API_KEY=your_anthropic_api_key_here
+   ```
+   
+   Get your API key from [Anthropic Console](https://console.anthropic.com/)
+
+3. **Run the development server**:
+   ```bash
+   npm run dev
+   ```
+
+4. **Open your browser**:
+   Navigate to [http://localhost:3000](http://localhost:3000)
+
+## Architecture Overview
+
+### Streaming Implementation
+- Direct integration with Anthropic's streaming API
+- Server-Sent Events (SSE) for real-time response streaming
+- Recursive conversation handling for tool use scenarios
+
+### Tool System
+- **PokéAPI Integration**: Fetches real-time Pokémon data
+- **Team Analyzer**: Custom algorithm for team composition analysis
+- **Type Effectiveness Calculator**: Comprehensive type chart implementation
+
+### API Structure
+- `/api/chat` - Main chat endpoint with streaming support
+- Tool execution happens server-side for security
+- Results are streamed back to the client in real-time
+
+## Usage Examples
+
+- "Tell me about Charizard"
+- "Analyze my team: Pikachu, Charizard, Blastoise, Venusaur, Alakazam, Dragonite"
+- "Get a random Pokémon"
+- "How can I improve my team: Geodude, Onix, Graveler?"
+
+## Project Structure
+
+```
+src/
+├── app/
+│   ├── api/chat/route.ts     # Streaming chat API endpoint
+│   ├── page.tsx              # Main application page
+│   └── layout.tsx            # Root layout
+├── components/
+│   └── Chat.tsx              # Main chat interface component
+├── lib/
+│   ├── pokeapi.ts            # PokéAPI integration utilities
+│   ├── team-analyzer.ts      # Custom team analysis tool
+│   └── anthropic-tools.ts    # Tool definitions and execution
+└── types/
+    └── pokemon.ts            # TypeScript type definitions
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## Development
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+- `npm run dev` - Start development server
+- `npm run build` - Build for production
+- `npm run start` - Start production server
+- `npm run lint` - Run ESLint
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+---
 
-## Learn More
-
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Built with ❤️ for Pokémon trainers everywhere!
