@@ -1,4 +1,6 @@
 import { Pokemon, PokemonSpecies } from '@/types/pokemon';
+import { validatePokemonApiResponse, validatePokemonSpeciesApiResponse } from '@/lib/schemas';
+import { z } from 'zod';
 
 const POKEAPI_BASE_URL = 'https://pokeapi.co/api/v2';
 
@@ -14,7 +16,19 @@ export async function getPokemon(nameOrId: string | number): Promise<Pokemon | n
     if (!response.ok) {
       return null;
     }
-    return await response.json();
+    
+    const data = await response.json();
+    
+    // Validate response against schema
+    try {
+      return validatePokemonApiResponse(data);
+    } catch (validationError) {
+      console.error('PokeAPI response validation failed:', validationError);
+      if (validationError instanceof z.ZodError) {
+        console.error('Validation errors:', validationError.errors);
+      }
+      return null;
+    }
   } catch (error) {
     console.error('Error fetching Pokemon:', error);
     return null;
@@ -33,7 +47,19 @@ export async function getPokemonSpecies(nameOrId: string | number): Promise<Poke
     if (!response.ok) {
       return null;
     }
-    return await response.json();
+    
+    const data = await response.json();
+    
+    // Validate response against schema
+    try {
+      return validatePokemonSpeciesApiResponse(data);
+    } catch (validationError) {
+      console.error('PokeAPI species response validation failed:', validationError);
+      if (validationError instanceof z.ZodError) {
+        console.error('Validation errors:', validationError.errors);
+      }
+      return null;
+    }
   } catch (error) {
     console.error('Error fetching Pokemon species:', error);
     return null;

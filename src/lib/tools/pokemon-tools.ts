@@ -8,31 +8,17 @@ import { ExternalApiError, ValidationError } from '../orchestrator/errors';
 import { getPokemon, getPokemonSpecies, getRandomPokemon, getEnglishFlavorText } from '../pokeapi';
 import { logger } from '../orchestrator/logger';
 import { Pokemon } from '@/types/pokemon';
+import { 
+  validatePokemonInfoInput, 
+  validatePokemonInfoOutput,
+  validateRandomPokemonOutput,
+  type PokemonInfoInput, 
+  type PokemonInfoOutput,
+  type RandomPokemonOutput
+} from '@/lib/schemas';
+import { z } from 'zod';
 
-export interface PokemonInfoInput {
-  pokemon: string;
-}
-
-export interface PokemonInfoOutput {
-  pokemon: {
-    name: string;
-    id: number;
-    types: string[];
-    height: number;
-    weight: number;
-    base_experience: number;
-    abilities: Array<{
-      name: string;
-      is_hidden: boolean;
-    }>;
-    stats: Array<{
-      name: string;
-      base_stat: number;
-    }>;
-    sprite: string;
-    description: string;
-  };
-}
+// Interfaces now imported from schemas
 
 export class PokemonInfoHandler implements ToolHandler<PokemonInfoInput, PokemonInfoOutput> {
   async execute(context: ToolExecutionContext): Promise<ToolExecutionResult<PokemonInfoOutput>> {
@@ -42,7 +28,9 @@ export class PokemonInfoHandler implements ToolHandler<PokemonInfoInput, Pokemon
     });
 
     try {
-      const { pokemon: pokemonName } = context.input as PokemonInfoInput;
+      // Validate input with Zod
+      const validatedInput = validatePokemonInfoInput(context.input);
+      const { pokemon: pokemonName } = validatedInput;
       
       contextLogger.info('Fetching Pokemon data', { pokemonName });
 
@@ -82,9 +70,12 @@ export class PokemonInfoHandler implements ToolHandler<PokemonInfoInput, Pokemon
         pokemonId: result.pokemon.id 
       });
 
+      // Validate output before returning
+      const validatedResult = validatePokemonInfoOutput(result);
+
       return {
         success: true,
-        data: result,
+        data: validatedResult,
         metadata: {
           executionTimeMs: 0, // Will be set by orchestrator
           attempts: 1,
@@ -141,27 +132,26 @@ export class PokemonInfoHandler implements ToolHandler<PokemonInfoInput, Pokemon
     return null;
   }
 
-  async validate(input: PokemonInfoInput): Promise<{ valid: boolean; errors?: string[] }> {
-    const errors: string[] = [];
-
-    if (!input.pokemon || typeof input.pokemon !== 'string') {
-      errors.push('Pokemon name or ID must be a non-empty string');
+  async validate(input: unknown): Promise<{ valid: boolean; errors?: string[] }> {
+    try {
+      validatePokemonInfoInput(input);
+      return { valid: true };
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return {
+          valid: false,
+          errors: error.issues.map((e: any) => `${e.path.join('.')}: ${e.message}`)
+        };
+      }
+      return {
+        valid: false,
+        errors: ['Invalid input format']
+      };
     }
-
-    if (input.pokemon && input.pokemon.trim().length === 0) {
-      errors.push('Pokemon name or ID cannot be empty');
-    }
-
-    return {
-      valid: errors.length === 0,
-      errors: errors.length > 0 ? errors : undefined,
-    };
   }
 }
 
-export interface RandomPokemonOutput {
-  pokemon: PokemonInfoOutput['pokemon'];
-}
+// RandomPokemonOutput now imported from schemas
 
 export class RandomPokemonHandler implements ToolHandler<{}, RandomPokemonOutput> {
   async execute(context: ToolExecutionContext): Promise<ToolExecutionResult<RandomPokemonOutput>> {
@@ -207,9 +197,12 @@ export class RandomPokemonHandler implements ToolHandler<{}, RandomPokemonOutput
         pokemonId: result.pokemon.id 
       });
 
+      // Validate output before returning
+      const validatedResult = validateRandomPokemonOutput(result);
+
       return {
         success: true,
-        data: result,
+        data: validatedResult,
         metadata: {
           executionTimeMs: 0,
           attempts: 1,

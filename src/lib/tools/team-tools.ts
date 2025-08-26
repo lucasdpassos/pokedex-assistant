@@ -9,23 +9,19 @@ import { getPokemon } from '../pokeapi';
 import { analyzePokemonTeam, suggestPokemonForTeam } from '../team-analyzer';
 import { logger } from '../orchestrator/logger';
 import { Pokemon } from '@/types/pokemon';
+import { 
+  validateTeamAnalysisInput, 
+  validateTeamAnalysisOutput,
+  validateTeamImprovementInput,
+  validateTeamImprovementOutput,
+  type TeamAnalysisInput, 
+  type TeamAnalysisOutput,
+  type TeamImprovementInput,
+  type TeamImprovementOutput
+} from '@/lib/schemas';
+import { z } from 'zod';
 
-export interface TeamAnalysisInput {
-  team_members: string;
-}
-
-export interface TeamAnalysisOutput {
-  team_analysis: {
-    team_size: number;
-    valid_members: string[];
-    types_covered: string[];
-    weaknesses: string[];
-    resistances: string[];
-    average_stats: Record<string, number>;
-    synergy_score: number;
-    synergy_rating: string;
-  };
-}
+// Interfaces now imported from schemas
 
 export class TeamAnalysisHandler implements ToolHandler<TeamAnalysisInput, TeamAnalysisOutput> {
   async execute(context: ToolExecutionContext): Promise<ToolExecutionResult<TeamAnalysisOutput>> {
@@ -35,7 +31,9 @@ export class TeamAnalysisHandler implements ToolHandler<TeamAnalysisInput, TeamA
     });
 
     try {
-      const { team_members } = context.input as TeamAnalysisInput;
+      // Validate input with Zod
+      const validatedInput = validateTeamAnalysisInput(context.input);
+      const { team_members } = validatedInput;
       
       contextLogger.info('Starting team analysis', { teamMembers: team_members });
 
@@ -79,9 +77,12 @@ export class TeamAnalysisHandler implements ToolHandler<TeamAnalysisInput, TeamA
         synergyRating: result.team_analysis.synergy_rating
       });
 
+      // Validate output before returning
+      const validatedResult = validateTeamAnalysisOutput(result);
+
       return {
         success: true,
-        data: result,
+        data: validatedResult,
         metadata: {
           executionTimeMs: 0,
           attempts: 1,
@@ -96,26 +97,22 @@ export class TeamAnalysisHandler implements ToolHandler<TeamAnalysisInput, TeamA
     }
   }
 
-  async validate(input: TeamAnalysisInput): Promise<{ valid: boolean; errors?: string[] }> {
-    const errors: string[] = [];
-
-    if (!input.team_members || typeof input.team_members !== 'string') {
-      errors.push('Team members must be provided as a string');
+  async validate(input: unknown): Promise<{ valid: boolean; errors?: string[] }> {
+    try {
+      validateTeamAnalysisInput(input);
+      return { valid: true };
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return {
+          valid: false,
+          errors: error.issues.map((e: any) => `${e.path.join('.')}: ${e.message}`)
+        };
+      }
+      return {
+        valid: false,
+        errors: ['Invalid input format']
+      };
     }
-
-    if (input.team_members && input.team_members.trim().length === 0) {
-      errors.push('Team members cannot be empty');
-    }
-
-    const pokemonNames = this.parseTeamMembers(input.team_members || '');
-    if (pokemonNames.length > 6) {
-      errors.push('Team cannot have more than 6 Pokemon');
-    }
-
-    return {
-      valid: errors.length === 0,
-      errors: errors.length > 0 ? errors : undefined,
-    };
   }
 
   private parseTeamMembers(teamString: string): string[] {
@@ -147,13 +144,12 @@ export class TeamAnalysisHandler implements ToolHandler<TeamAnalysisInput, TeamA
     return team;
   }
 
-  private getSynergyRating(score: number): string {
-    if (score >= 90) return "Excellent";
-    if (score >= 75) return "Very Good";
+  private getSynergyRating(score: number): "Poor" | "Fair" | "Good" | "Excellent" | "Outstanding" {
+    if (score >= 90) return "Outstanding";
+    if (score >= 75) return "Excellent";
     if (score >= 60) return "Good";
     if (score >= 45) return "Fair";
-    if (score >= 30) return "Poor";
-    return "Very Poor";
+    return "Poor";
   }
 }
 
